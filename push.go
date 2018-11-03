@@ -89,7 +89,7 @@ func main() {
 			c.JSON(200, uploaded)
 		})
 
-		apiAuth.POST("/ping", func(c *gin.Context) {
+		apiAuth.GET("/ping", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "OK"})
 		})
 	}
