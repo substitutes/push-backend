@@ -80,7 +80,7 @@ func main() {
 					c.JSON(500, util.NewError("Could not read tar archive contents", err))
 					return
 				}
-				if err := conn.Stor("foo.txt", r); err != nil {
+				if err := conn.Stor(file.Name, r); err != nil {
 					c.JSON(500, util.NewError("Could not upload file to FTP server", err))
 					return
 				}
