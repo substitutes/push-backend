@@ -1,9 +1,8 @@
 package main
 
 import (
-	"archive/tar"
-	"github.com/dutchcoders/goftp"
 	"github.com/gin-gonic/gin"
+	"github.com/jlaffaye/ftp"
 	log "github.com/sirupsen/logrus"
 	"github.com/substitutes/push-backend/util"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -18,6 +17,8 @@ var (
 	ftpPass      = kingpin.Flag("ftp-password", "Password for the given FTP host").Short('p').Required().String()
 	ftpDir       = kingpin.Flag("ftp-directory", "Specify a directory where to upload the received files").Short('d').Default(".").String()
 	port         = kingpin.Flag("port", "Port for the web server").Default("3000").Int()
+	verbose      = kingpin.Flag("verbose", "Enable verbose output").Short('v').Bool()
+	quiet        = kingpin.Flag("quiet", "Only display warnings").Short('q').Bool()
 	authUser     = kingpin.Flag("username", "Username for HTTP basic auth").Default("substitutes").String()
 	authPassword = kingpin.Flag("password", "Password for HTTP basic auth").Default("substitutes").String()
 )
@@ -31,23 +32,37 @@ type FileUpload struct {
 func dir(s string) string { return *ftpDir + s }
 
 func main() {
+	kingpin.CommandLine.HelpFlag.Short('h')
 	kingpin.Parse()
 
+	if *verbose {
+		log.SetLevel(log.DebugLevel)
+	} else if *quiet {
+		log.SetLevel(log.WarnLevel)
+	}
 	r := gin.Default()
 
 	// Connect to the FTP server
-	conn, err := goftp.Connect(*ftpHost)
+	conn, err := ftp.Connect(*ftpHost)
 	if err != nil {
 		log.Fatal("Failed to dial FTP server: ", err)
 	}
+	defer conn.Logout()
 	if err := conn.Login(*ftpUser, *ftpPass); err != nil {
 		log.Fatal("Failed to authenticate against FTP server: ", err)
 	}
 
 	if *ftpDir != "." {
-		if err := conn.Mkd(*ftpDir); err != nil {
-			log.Fatal("Failed to create given directory ", err)
+		if err := conn.MakeDir(*ftpDir); err != nil {
+			log.Fatal("Failed to create given directory: ", err)
 		}
+		if err := conn.ChangeDir(*ftpDir); err != nil {
+			log.Fatal("Failed to change to given directory: ", err)
+		}
+	}
+
+	if dir, err := conn.CurrentDir(); err != nil {
+		log.Debug("Currently in directory: ", dir)
 	}
 
 	r.GET("/", func(c *gin.Context) {
@@ -68,25 +83,15 @@ func main() {
 				c.JSON(400, util.NewError("Could not open file", err))
 				return
 			}
-			r := tar.NewReader(file)
-			defer file.Close()
 			var uploaded []FileUpload
-			for {
-				file, err := r.Next()
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					c.JSON(500, util.NewError("Could not read tar archive contents", err))
-					return
-				}
-				if err := conn.Stor(file.Name, r); err != nil {
-					c.JSON(500, util.NewError("Could not upload file to FTP server", err))
-					return
-				}
-				uploaded = append(uploaded, FileUpload{Name: file.Name, Size: file.Size, UploadedAt: time.Now().Unix()})
+			if err := conn.Stor(f.Filename, file.(io.Reader)); err != nil {
+				c.JSON(500, util.NewError("Could not upload file to FTP server", err))
+				return
+			} else {
+				uploaded = append(uploaded, FileUpload{Name: f.Filename, Size: f.Size, UploadedAt: time.Now().Unix()})
 			}
-			c.JSON(200, uploaded)
+			file.Close()
+			c.JSON(201, uploaded)
 		})
 
 		apiAuth.GET("/ping", func(c *gin.Context) {
