@@ -6,7 +6,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/substitutes/push-backend/util"
 	"gopkg.in/alecthomas/kingpin.v2"
-	"io"
 	"strconv"
 	"time"
 )
@@ -84,7 +83,7 @@ func main() {
 				return
 			}
 			var uploaded []FileUpload
-			if err := conn.Stor(f.Filename, file.(io.Reader)); err != nil {
+			if err := conn.Stor(f.Filename, file); err != nil {
 				c.JSON(500, util.NewError("Could not upload file to FTP server", err))
 				return
 			} else {
