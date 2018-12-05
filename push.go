@@ -41,15 +41,7 @@ func main() {
 	}
 	r := gin.Default()
 
-	// Connect to the FTP server
-	conn, err := ftp.Connect(*ftpHost)
-	if err != nil {
-		log.Fatal("Failed to dial FTP server: ", err)
-	}
-	defer conn.Logout()
-	if err := conn.Login(*ftpUser, *ftpPass); err != nil {
-		log.Fatal("Failed to authenticate against FTP server: ", err)
-	}
+	conn := connect()
 
 	if *ftpDir != "." {
 		if err := conn.MakeDir(*ftpDir); err != nil {
@@ -60,10 +52,6 @@ func main() {
 		}
 	}
 
-	if dir, err := conn.CurrentDir(); err != nil {
-		log.Debug("Currently in directory: ", dir)
-	}
-
 	r.GET("/", func(c *gin.Context) {
 		c.String(200, "OK")
 	})
@@ -71,6 +59,8 @@ func main() {
 	apiAuth := r.Group("/api", gin.BasicAuth(gin.Accounts{*authUser: *authPassword}))
 	{
 		apiAuth.POST("/push", func(c *gin.Context) {
+			// Reconnect to FTP
+			conn = connect()
 			// Get the data
 			f, err := c.FormFile("push")
 			if err != nil {
@@ -99,4 +89,18 @@ func main() {
 	}
 
 	r.Run(":" + strconv.Itoa(*port))
+}
+
+func connect() *ftp.ServerConn {
+	// Connect to the FTP server
+	conn, err := ftp.Connect(*ftpHost)
+	if err != nil {
+		log.Fatal("Failed to dial FTP server: ", err)
+	}
+	defer conn.Logout()
+	if err := conn.Login(*ftpUser, *ftpPass); err != nil {
+		log.Fatal("Failed to authenticate against FTP server: ", err)
+	}
+
+	return conn
 }
