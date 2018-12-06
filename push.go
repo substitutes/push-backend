@@ -60,7 +60,6 @@ func main() {
 	{
 		apiAuth.POST("/push", func(c *gin.Context) {
 			// Reconnect to FTP
-			conn = connect()
 			// Get the data
 			f, err := c.FormFile("push")
 			if err != nil {
@@ -97,7 +96,6 @@ func connect() *ftp.ServerConn {
 	if err != nil {
 		log.Fatal("Failed to dial FTP server: ", err)
 	}
-	defer conn.Logout()
 	if err := conn.Login(*ftpUser, *ftpPass); err != nil {
 		log.Fatal("Failed to authenticate against FTP server: ", err)
 	}
