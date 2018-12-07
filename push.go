@@ -60,6 +60,8 @@ func main() {
 	{
 		apiAuth.POST("/push", func(c *gin.Context) {
 			// Reconnect to FTP
+			conn.Logout()
+			conn = connect()
 			// Get the data
 			f, err := c.FormFile("push")
 			if err != nil {
